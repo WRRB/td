@@ -1,11 +1,14 @@
+use app_dirs::{app_root, get_app_root, AppDataType, AppInfo, AppDirsError};
 use env_logger;
 use log::debug;
 use std::num::ParseIntError;
-use std::{fmt, str};
+use std::{fmt, fs, path, str};
 use structopt::StructOpt;
-use app_dirs::{AppInfo, AppDataType, get_app_root, app_root};
 
-const TD_HOME: AppInfo = AppInfo {name: "td", author: "wrrb"};
+const TD_HOME: AppInfo = AppInfo {
+    name: "td",
+    author: "wrrb",
+};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "td", about = "A todo list")]
@@ -22,7 +25,7 @@ fn main() {
     env_logger::init();
 
     // create the td database file if it doesn't exist
-    let log = Log::create_if_not_exists();
+    let log = Log::create_if_not_exists().expect("Unable to ensure log");
 
     let args: Cli = Cli::from_args();
     debug!("current args: {:?}", args);
@@ -49,25 +52,41 @@ impl Log {
         }
     }
 
-    fn create_if_not_exists() -> Log {
-        debug!("checking if log exists");
-        let abspath_dir = app_root(AppDataType::UserConfig, &TD_HOME);
-        debug!("creating log");
-        Log {
+    fn create_if_not_exists() -> Result<Log, AppDirsError> {
+
+        let log_filename = "log";
+
+        debug!("ensuring app_root");
+        let _abspath_dir = app_root(AppDataType::UserConfig, &TD_HOME)?;
+
+        debug!("reading or creating log");
+        let _abspath_log = _abspath_dir.join(log_filename.to_string());
+        let file = fs::OpenOptions::new()
+            .write(true)
+            .read(true)
+            .create(true)
+            .open(_abspath_log);
+
+        println!("{:?}", file);
+
+        Ok(Log {
             dir: String::from(".td"),
             name: String::from("log"),
             abspath: String::from("/home/wrrb/.td/log"),
             relpath: String::from("$PWD/../.td/log"),
-            log_entries: vec![LogEntry { index: 8, message: "from create".to_string()}],
-        }
+            log_entries: vec![LogEntry {
+                index: 8,
+                message: "from create".to_string(),
+            }],
+        })
     }
 
     fn save(&self, entry: LogEntry) {
-        debug!("saving LogEntry: {:?}", entry); 
+        debug!("saving LogEntry: {:?}", entry);
     }
 
     fn delete(&self, entry: LogEntry) {
-        debug!("deleting LogEntry: {:?}", entry)      
+        debug!("deleting LogEntry: {:?}", entry)
     }
 }
 
@@ -98,7 +117,6 @@ impl str::FromStr for LogEntry {
 }
 
 impl LogEntry {
-
     fn from_message(s: String) -> LogEntry {
         LogEntry {
             index: -1,
