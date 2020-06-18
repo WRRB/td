@@ -4,6 +4,8 @@ use log::debug;
 use std::num::ParseIntError;
 use std::{fmt, fs, path, str};
 use structopt::StructOpt;
+use csv;
+use serde::Deserialize;
 
 const TD_HOME: AppInfo = AppInfo {
     name: "td",
@@ -36,6 +38,7 @@ fn main() {
 }
 // ----------------- Log ------------------- //
 
+#[derive(Debug)]
 struct Log {
     dir: String,
     name: String,
@@ -61,13 +64,17 @@ impl Log {
 
         debug!("reading or creating log");
         let _abspath_log = _abspath_dir.join(log_filename.to_string());
-        let file = fs::OpenOptions::new()
-            .write(true)
-            .read(true)
-            .create(true)
-            .open(_abspath_log);
 
-        println!("{:?}", file);
+        let mut log = csv::Reader::from_path(_abspath_log).unwrap();
+
+        let mut entries: Vec<LogEntry> = vec![]; 
+
+        for result in log.deserialize() {
+            let entry: LogEntry = result.unwrap();
+            entries.push(entry);
+        }
+
+        println!("{:?}", entries);
 
         Ok(Log {
             dir: String::from(".td"),
@@ -92,6 +99,7 @@ impl Log {
 
 // --------------- LogEntry ----------------- //
 
+#[derive(Deserialize)]
 struct LogEntry {
     index: i8,
     message: String,
