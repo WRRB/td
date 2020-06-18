@@ -64,6 +64,11 @@ impl Log {
 
         debug!("reading or creating log");
         let _abspath_log = _abspath_dir.join(log_filename.to_string());
+        let file = fs::OpenOptions::new()
+            .write(true)
+            .read(true)
+            .create(true)
+            .open(&_abspath_log);
 
         let mut log = csv::Reader::from_path(_abspath_log).unwrap();
 
