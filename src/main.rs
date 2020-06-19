@@ -1,11 +1,14 @@
-use app_dirs::{app_root, get_app_root, AppDataType, AppInfo, AppDirsError};
+use anyhow::Result;
+use app_dirs::{app_root, AppDataType, AppInfo};
+use csv;
 use env_logger;
 use log::debug;
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::fs::File;
 use std::num::ParseIntError;
-use std::{fmt, fs, path, str};
+use std::{process, fmt, str, env};
 use structopt::StructOpt;
-use csv;
-use serde::Deserialize;
 
 const TD_HOME: AppInfo = AppInfo {
     name: "td",
@@ -22,79 +25,89 @@ enum Cli {
 }
 
 fn main() {
+    env_logger::init();
+    
     debug!("start main");
 
-    env_logger::init();
-
     // create the td database file if it doesn't exist
-    let log = Log::create_if_not_exists().expect("Unable to ensure log");
-
+    let log = Log::read_or_create().expect("Unable to read or create log file");
+    
+    // if no args, print and bail
+    let has_args = env::args().skip(1).next();
+    if !has_args.is_some() {
+        log.print();
+        debug!("no args: bail");
+        process::exit(0);
+    }
+    
+    // handle args
     let args: Cli = Cli::from_args();
     debug!("current args: {:?}", args);
     match args {
         Cli::Add { message: m } => log.save(LogEntry::from_message(m)),
         Cli::Rm { index: i } => log.delete(LogEntry::from_index(i)),
     }
+
+    debug!("end main");
 }
 // ----------------- Log ------------------- //
 
 #[derive(Debug)]
 struct Log {
-    dir: String,
-    name: String,
-    abspath: String,
-    relpath: String,
+    log_file: File,
     log_entries: Vec<LogEntry>,
 }
 
 impl Log {
-    fn read(&self) {
+    fn print(&self) {
         debug!("reading log");
         for entry in &self.log_entries {
             println!("{:?}", entry)
         }
     }
 
-    fn create_if_not_exists() -> Result<Log, AppDirsError> {
+    fn read_or_create() -> Result<Log> {
+        let log_file = Log::create_if_not_exists()?;
+        let mut log = csv::Reader::from_reader(&log_file);
 
+        let mut entries: Vec<LogEntry> = vec![];
+
+        for result in log.deserialize() {
+            let entry: LogEntry = result?;
+            entries.push(entry);
+        }
+
+        Ok(Log {
+            log_file: log_file,
+            log_entries: entries,
+        })
+    }
+
+    fn create_if_not_exists() -> Result<File> {
         let log_filename = "log";
 
         debug!("ensuring app_root");
         let _abspath_dir = app_root(AppDataType::UserConfig, &TD_HOME)?;
 
-        debug!("reading or creating log");
+        debug!(
+            "ensuring log file in dir: {}",
+            _abspath_dir.to_str().unwrap_or("[error]")
+        );
         let _abspath_log = _abspath_dir.join(log_filename.to_string());
         let file = fs::OpenOptions::new()
             .write(true)
             .read(true)
             .create(true)
-            .open(&_abspath_log);
+            .open(&_abspath_log)?;
 
-        let mut log = csv::Reader::from_path(_abspath_log).unwrap();
-
-        let mut entries: Vec<LogEntry> = vec![]; 
-
-        for result in log.deserialize() {
-            let entry: LogEntry = result.unwrap();
-            entries.push(entry);
-        }
-
-        println!("{:?}", entries);
-
-        Ok(Log {
-            dir: String::from(".td"),
-            name: String::from("log"),
-            abspath: String::from("/home/wrrb/.td/log"),
-            relpath: String::from("$PWD/../.td/log"),
-            log_entries: vec![LogEntry {
-                index: 8,
-                message: "from create".to_string(),
-            }],
-        })
+        Ok(file)
     }
 
     fn save(&self, entry: LogEntry) {
         debug!("saving LogEntry: {:?}", entry);
+        let mut writer = csv::Writer::from_writer(&self.log_file);
+        let result = writer.serialize(&entry);
+        debug!("{:?} saved: {:?}", result, entry)
     }
 
     fn delete(&self, entry: LogEntry) {
@@ -104,7 +117,7 @@ impl Log {
 
 // --------------- LogEntry ----------------- //
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 struct LogEntry {
     index: i8,
     message: String,
