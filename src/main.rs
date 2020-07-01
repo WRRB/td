@@ -1,7 +1,6 @@
 use anyhow::Result;
 use app_dirs::{app_root, AppDataType, AppInfo};
 use csv;
-use env_logger;
 use log::debug;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -33,8 +32,8 @@ fn main() {
     let log = Log::read_or_create().expect("Unable to read or create log file");
     
     // if no args, print and bail
-    let has_args = env::args().skip(1).next();
-    if !has_args.is_some() {
+    let has_args = env::args().nth(1);
+    if has_args.is_none() {
         log.print();
         debug!("no args: bail");
         process::exit(0);
@@ -78,7 +77,7 @@ impl Log {
         }
 
         Ok(Log {
-            log_file: log_file,
+            log_file,
             log_entries: entries,
         })
     }
@@ -135,10 +134,7 @@ impl fmt::Debug for LogEntry {
 impl str::FromStr for LogEntry {
     type Err = ParseIntError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(LogEntry {
-            index: -1,
-            message: s.to_string(),
-        })
+        Ok(LogEntry::from_message(s.to_string()))
     }
 }
 
@@ -152,7 +148,7 @@ impl LogEntry {
 
     fn from_index(index: i8) -> LogEntry {
         LogEntry {
-            index: index,
+            index,
             message: "dummy".to_string(),
         }
     }
