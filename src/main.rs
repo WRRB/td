@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::fs::File;
 use std::num::ParseIntError;
-use std::{process, fmt, str, env};
+use std::{env, fmt, process, str};
 use structopt::StructOpt;
 
 const TD_HOME: AppInfo = AppInfo {
@@ -25,20 +25,20 @@ enum Cli {
 
 fn main() {
     env_logger::init();
-    
+
     debug!("start main");
 
     // create the td database file if it doesn't exist
     let log = Log::read_or_create().expect("Unable to read or create log file");
-    
+
     // if no args, print and bail
-    let has_args = env::args().nth(1);
-    if has_args.is_none() {
+    let has_args = env::args().nth(1).is_some();
+    if !has_args {
         log.print();
         debug!("no args: bail");
         process::exit(0);
     }
-    
+
     // handle args
     let args: Cli = Cli::from_args();
     debug!("current args: {:?}", args);
@@ -94,7 +94,7 @@ impl Log {
         );
         let _abspath_log = _abspath_dir.join(log_filename.to_string());
         let file = fs::OpenOptions::new()
-            .write(true)
+            .append(true)
             .read(true)
             .create(true)
             .open(&_abspath_log)?;
@@ -103,8 +103,14 @@ impl Log {
     }
 
     fn save(&self, entry: LogEntry) {
+        let mut no_entries = false;
+        if self.log_entries.len() == 0 as usize{
+            no_entries = true;
+        }
         debug!("saving LogEntry: {:?}", entry);
-        let mut writer = csv::Writer::from_writer(&self.log_file);
+        let mut writer = csv::WriterBuilder::new()
+            .has_headers(no_entries)
+            .from_writer(&self.log_file);
         let result = writer.serialize(&entry);
         debug!("{:?} saved: {:?}", result, entry)
     }
