@@ -113,6 +113,7 @@ impl Log {
             .from_writer(&self.log_file);
         let result = writer.serialize(&entry);
         debug!("{:?} saved: {:?}", result, entry)
+        //TODO: return LogEntry with index
     }
 
     fn delete(&self, entry: LogEntry) {
@@ -124,8 +125,8 @@ impl Log {
 
 #[derive(Deserialize, Serialize)]
 struct LogEntry {
-    index: i8,
-    message: String,
+    index: Option<i8>,
+    message: Option<String>,
 }
 
 impl fmt::Debug for LogEntry {
@@ -147,15 +148,16 @@ impl str::FromStr for LogEntry {
 impl LogEntry {
     fn from_message(s: String) -> LogEntry {
         LogEntry {
-            index: -1,
-            message: s,
+            index: None,
+            message: Some(s),
         }
     }
 
     fn from_index(index: i8) -> LogEntry {
+        //TODO: get from log with index and add msg to instance
         LogEntry {
-            index,
-            message: "dummy".to_string(),
+            index: Some(index),
+            message: None,
         }
     }
 }
