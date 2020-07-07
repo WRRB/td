@@ -3,6 +3,7 @@ use app_dirs::{app_root, AppDataType, AppInfo};
 use csv;
 use log::debug;
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 use std::fs;
 use std::fs::File;
 use std::num::ParseIntError;
@@ -76,6 +77,8 @@ impl Log {
             entries.push(entry);
         }
 
+        entries.sort();
+
         Ok(Log {
             log_file,
             log_entries: entries,
@@ -102,18 +105,26 @@ impl Log {
         Ok(file)
     }
 
-    fn save(&self, entry: LogEntry) {
+    fn save(&self, mut entry: LogEntry) {
         let mut no_entries = false;
-        if self.log_entries.len() == 0 as usize{
+
+        // first entry, marking 1 (it's not an array)
+        if self.log_entries.len() == 0 as usize {
             no_entries = true;
+            entry.index = Some(1)
+        // new entry, incrementing max index
+        // TODO: implement self.new_index()  on the Log struct
+        } else if let Some(last_entry) = self.log_entries.last() {
+            if let Some(last_index) = last_entry.index {
+                entry.index = Some(last_index + 1);
+            }
         }
         debug!("saving LogEntry: {:?}", entry);
         let mut writer = csv::WriterBuilder::new()
-            .has_headers(no_entries)
+            .has_headers(no_entries) // no entries yet means: add headers
             .from_writer(&self.log_file);
         let result = writer.serialize(&entry);
         debug!("{:?} saved: {:?}", result, entry)
-        //TODO: return LogEntry with index
     }
 
     fn delete(&self, entry: LogEntry) {
@@ -145,6 +156,26 @@ impl str::FromStr for LogEntry {
     }
 }
 
+impl std::cmp::PartialEq for LogEntry {
+    fn eq(&self, other: &LogEntry) -> bool{
+        self.index == other.index
+    }
+}
+
+impl std::cmp::PartialOrd for LogEntry {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl std::cmp::Eq for LogEntry {}
+
+impl std::cmp::Ord for LogEntry {
+    fn cmp(&self, other: &LogEntry) -> Ordering{
+        self.index.cmp(&other.index)
+    }
+}
+
 impl LogEntry {
     fn from_message(s: String) -> LogEntry {
         LogEntry {
@@ -154,7 +185,6 @@ impl LogEntry {
     }
 
     fn from_index(index: i8) -> LogEntry {
-        //TODO: get from log with index and add msg to instance
         LogEntry {
             index: Some(index),
             message: None,
