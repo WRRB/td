@@ -62,8 +62,16 @@ impl Log {
     fn print(&self) {
         debug!("reading log");
         for entry in &self.log_entries {
-            println!("{:?}", entry)
+        
+            let mut ref_padding = "";
+            let todo_ref = entry.index.as_ref().expect("bad index");
+            if todo_ref < &(10 as i8){
+                ref_padding = "0";
+            }
+            let todo_msg = entry.message.as_ref().expect("bad message"); 
+            println!(" {}{} | {}", ref_padding, todo_ref, todo_msg);
         }
+        
     }
 
     fn read_or_create() -> Result<Log> {
