@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Result, Error};
 use app_dirs::{app_root, AppDataType, AppInfo};
 use csv;
 use log::debug;
@@ -9,6 +9,9 @@ use std::fs::File;
 use std::num::ParseIntError;
 use std::{env, fmt, process, str};
 use structopt::StructOpt;
+
+#[macro_use]
+extern crate anyhow;
 
 const TD_HOME: AppInfo = AppInfo {
     name: "td",
@@ -113,20 +116,37 @@ impl Log {
         Ok(file)
     }
 
-    fn save(&self, mut entry: LogEntry) {
-        let mut no_entries = false;
+    fn new_index(&self) -> Result<i8> { 
+        let mut new_index = 0;
 
         // first entry, marking 1 (it's not an array)
         if self.log_entries.len() == 0 as usize {
-            no_entries = true;
-            entry.index = Some(1)
+            new_index = 1;
         // new entry, incrementing max index
-        // TODO: implement self.new_index()  on the Log struct
         } else if let Some(last_entry) = self.log_entries.last() {
             if let Some(last_index) = last_entry.index {
-                entry.index = Some(last_index + 1);
+                new_index = last_index + 1;
             }
         }
+
+        if new_index == 0 {
+            Err(anyhow!("error"))
+        } else {
+            Ok(new_index)
+        }
+    }
+
+    fn save(&self, mut entry: LogEntry) {
+        let mut no_entries = false;
+
+        let new_index = self.new_index().expect("No");
+        
+        if new_index == 1 {
+            no_entries = true;
+        }
+
+        entry.index = Some(new_index);
+
         debug!("saving LogEntry: {:?}", entry);
         let mut writer = csv::WriterBuilder::new()
             .has_headers(no_entries) // no entries yet means: add headers
@@ -136,7 +156,7 @@ impl Log {
     }
 
     fn delete(&self, entry: LogEntry) {
-        debug!("deleting LogEntry: {:?}", entry)
+        println!("deleting LogEntry: {:?}", entry)
     }
 }
 
